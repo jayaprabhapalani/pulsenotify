@@ -1,0 +1,21 @@
+services:
+  floci:
+    image: floci/floci:latest
+    ports:
+      - "4566:4566"
+    environment:
+      - PERSISTENCE=file # messages survive restarts
+    volumes:
+      - floci-data:/var/lib/floci
+
+  floci-ui:
+    image: floci/floci-ui:latest
+    ports:
+      - "4000:4500"
+    environment:
+      - FLOCI_ENDPOINT=http://floci:4566
+    depends_on:
+      - floci
+
+volumes:
+  floci-data:
