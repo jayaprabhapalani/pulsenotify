@@ -16,6 +16,14 @@ services:
       - FLOCI_ENDPOINT=http://floci:4566
     depends_on:
       - floci
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
 
 volumes:
   floci-data:
+  redis-data:
