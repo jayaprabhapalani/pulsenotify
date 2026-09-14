@@ -7,6 +7,9 @@ AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "test")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "test")
 
+# Redis
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
+
 # SQS
 QUEUE_NAME = "pulsenotify-queue"
 DLQ_NAME = "pulsenotify-dlq"
