@@ -1,7 +1,9 @@
 import boto3
 import json
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException,Header
+from typing import Optional
 from models.notification import NotificationRequest
+from worker.rate_limiter import rate_limiter
 from config import (
     AWS_ENDPOINT_URL, AWS_REGION,
     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
@@ -26,13 +28,45 @@ def get_queue_url() -> str:
 
 
 @router.post("/notify")
-async def send_notification(request: NotificationRequest):
+async def send_notification(
+    request: NotificationRequest,
+    x_api_key: Optional[str] = Header(default="default-sender")  # sender identification):
+):
     """
     Accepts a notification request and puts it on SQS.
     Returns immediately — does NOT wait for the message to be processed.
     This is the core of async decoupling.
+    
+    Rate limited by:
+    - sender (api key): 100 req/min
+    - recipient: 10 notifications/hour
     """
     request = request.with_defaults()
+    
+     # --- rate limit check: sender ---
+    if not rate_limiter.check_sender(x_api_key):
+        usage = rate_limiter.get_usage("sender", x_api_key)
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "sender rate limit exceeded",
+                "limit": usage["limit"],
+                "window": "1 minute",
+                "retry_after": "60s",
+            }
+        )
+     # --- rate limit check: recipient ---
+    if not rate_limiter.check_recipient(request.recipient):
+        usage = rate_limiter.get_usage("recipient", request.recipient)
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "recipient rate limit exceeded",
+                "limit": usage["limit"],
+                "window": "1 hour",
+                "retry_after": "3600s",
+            }
+        )
 
     try:
         queue_url = get_queue_url()
