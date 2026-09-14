@@ -59,7 +59,7 @@ def process_message(body: dict) -> None:
     # simulate processing time
     time.sleep(0.5)
     log.info("notification processed successfully")
-
+    #raise Exception("simulated failure") - to simulate visibility timedout -max retries - then msg moves- to dlq
 
 def run():
     sqs = get_sqs_client()
