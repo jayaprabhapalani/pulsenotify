@@ -3,3 +3,4 @@ uvicorn==0.30.6
 boto3==1.35.0
 pydantic==2.8.0
 redis==5.0.8
+psycopg2-binary==2.9.9

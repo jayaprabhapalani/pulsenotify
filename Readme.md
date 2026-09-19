@@ -110,3 +110,7 @@ aws sqs get-queue-attributes \
   --queue-url http://localhost:4566/000000000000/pulsenotify-queue \
   --attribute-names ApproximateNumberOfMessages
 ```
+
+## TODO
+
+- write a proper db session and use DI for db session
