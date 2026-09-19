@@ -24,6 +24,18 @@ services:
     volumes:
       - redis-data:/data
 
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: pulse
+      POSTGRES_PASSWORD: pulse
+      POSTGRES_DB: pulsenotify
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
 volumes:
   floci-data:
   redis-data:
+  postgres-data:
