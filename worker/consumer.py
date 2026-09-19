@@ -25,6 +25,8 @@ from config import (
     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
     QUEUE_NAME, LONG_POLL_WAIT_TIME
 )
+from core.idempotency import idempotency_store
+from core.repository import notification_repo
 
 logging.basicConfig(
     level=logging.INFO,
@@ -55,11 +57,29 @@ def process_message(body: dict) -> None:
     log.info(f"  subject        : {body['subject']}")
     log.info(f"  message        : {body['message']}")
     log.info(f"  idempotency_key: {body['idempotency_key']}")
+    
+    idempotency_key=body["idempotency_key"]
+    
+     # --- idempotency check at worker level ---
+    # SQS guarantees at-least-once delivery — same message can arrive twice
+    # this guard ensures we never process the same notification twice
+    if idempotency_store.exists(idempotency_key):
+        log.info(f"duplicate message detected, skipping: {idempotency_key}")
+        return
+ 
+    # mark as processing in DB
+    notification_repo.mark_processing(idempotency_key)
+ 
+    log.info(f"processing notification: {idempotency_key}")
+    log.info(f"  recipient: {body['recipient']} | channel: {body['channel']}")
 
-    # simulate processing time
+    # simulate processing time # simulate actual delivery (phase 4 — SNS/SES goes here)
     time.sleep(0.5)
     log.info("notification processed successfully")
     #raise Exception("simulated failure") - to simulate visibility timedout -max retries - then msg moves- to dlq
+    # mark as delivered
+    notification_repo.mark_delivered(idempotency_key)
+    log.info(f"delivered: {idempotency_key}")
 
 def run():
     sqs = get_sqs_client()
@@ -106,6 +126,11 @@ def run():
 
             except Exception as e:
                 # FAILURE — do NOT delete
+                # if failed update the DB
+                idempotency_key = json.loads(msg["Body"]).get("idempotency_key", "unknown")
+                log.error(f"failed: {e}")
+                notification_repo.mark_failed(idempotency_key, str(e))
+                # don't delete — SQS will retry after visibility timeout
                 # message stays hidden until visibility timeout expires
                 # then becomes visible again for retry
                 # after MAX_RECEIVE_COUNT failures → moves to DLQ
