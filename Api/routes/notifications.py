@@ -4,6 +4,8 @@ from fastapi import APIRouter, HTTPException,Header
 from typing import Optional
 from models.notification import NotificationRequest
 from worker.rate_limiter import rate_limiter
+from core.idempotency import idempotency_store
+from core.repository import notification_repo
 from config import (
     AWS_ENDPOINT_URL, AWS_REGION,
     AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
@@ -67,11 +69,23 @@ async def send_notification(
                 "retry_after": "3600s",
             }
         )
+        
+    # --- 3. idempotency check ---
+    # if this key was already processed, return 409 instead of queuing again
+    if idempotency_store.exists(request.idempotency_key):
+        raise HTTPException(status_code=409, detail={
+            "error": "duplicate request",
+            "idempotency_key": request.idempotency_key,
+            "message": "this notification was already queued or processed",
+        })
 
     try:
         queue_url = get_queue_url()
+        
+        # --- 4. write to DB as 'queued' ---
+        notification_repo.create(request.model_dump())
 
-        # serialize the notification to JSON and publish to SQS
+        # --- 5. publish to SQS ---
         # MessageDeduplicationId is for FIFO queues — we'll cover that later
         response = sqs.send_message(
             QueueUrl=queue_url,
@@ -89,12 +103,27 @@ async def send_notification(
                 }
             }
         )
+        
+        # --- 6. mark idempotency key as seen ---
+        # do this AFTER successful queue publish
+        # if we marked it before and SQS failed, we'd permanently block retries
+        idempotency_store.mark_processed(request.idempotency_key)
 
         return {
             "status": "queued",
             "message_id": response["MessageId"],
             "idempotency_key": request.idempotency_key,
         }
+    
+    except HTTPException:
+        raise    
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+@router.get("/notifications/{recipient}")
+async def get_notifications(recipient: str):
+    """notification history for a recipient — audit trail"""
+    records = notification_repo.get_by_recipient(recipient)
+    return {"recipient": recipient, "notifications": records}    
