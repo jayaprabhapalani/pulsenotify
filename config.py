@@ -7,6 +7,9 @@ AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "test")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "test")
 
+# Postgres
+POSTGRES_URL = os.getenv("POSTGRES_URL", "postgresql://pulse:pulse@localhost:5432/pulsenotify")
+
 # Redis
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
